@@ -1,4 +1,6 @@
-class PillReminder {
+import 'package:equatable/equatable.dart';
+
+class PillReminder extends Equatable {
   final String id;
   final String medicineName;
   final String dosage;
@@ -6,7 +8,7 @@ class PillReminder {
   final DateTime time;
   final bool isActive;
 
-  PillReminder({
+  const PillReminder({
     required this.id,
     required this.medicineName,
     required this.dosage,
@@ -14,6 +16,16 @@ class PillReminder {
     required this.time,
     required this.isActive,
   });
+
+  @override
+  List<Object> get props => [
+    id,
+    medicineName,
+    dosage,
+    frequency,
+    time,
+    isActive,
+  ];
 
   Map<String, dynamic> toJson() {
     return {
@@ -28,12 +40,12 @@ class PillReminder {
 
   factory PillReminder.fromJson(Map<String, dynamic> json) {
     return PillReminder(
-      id: json['id'],
-      medicineName: json['medicineName'],
-      dosage: json['dosage'],
-      frequency: json['frequency'],
-      time: DateTime.parse(json['time']),
-      isActive: json['isActive'],
+      id: json['id'] as String,
+      medicineName: json['medicineName'] as String,
+      dosage: json['dosage'] as String,
+      frequency: json['frequency'] as String,
+      time: DateTime.parse(json['time'] as String),
+      isActive: json['isActive'] as bool,
     );
   }
 

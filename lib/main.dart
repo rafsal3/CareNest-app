@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router.dart';
-
-import 'services/reminder_service.dart';
 import 'services/storage_service.dart';
+import 'services/reminder_service.dart';
+import 'providers/providers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize services
+  final storageService = StorageService();
   await storageService.init();
+
+  final reminderService = ReminderService();
   await reminderService.init();
-  runApp(const MyApp());
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        storageServiceProvider.overrideWithValue(storageService),
+        reminderServiceProvider.overrideWithValue(reminderService),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

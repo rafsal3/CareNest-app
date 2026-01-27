@@ -5,14 +5,16 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/pill_reminder.dart';
+import 'interfaces/reminder_service_interface.dart';
 
-class ReminderService {
+class ReminderService implements IReminderService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
 
   /// Initialize the notification plugin and timezone
+  @override
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -75,6 +77,7 @@ class ReminderService {
   }
 
   /// Schedule a daily reminder
+  @override
   Future<void> scheduleReminder(PillReminder reminder) async {
     if (!reminder.isActive) return;
 
@@ -120,6 +123,7 @@ class ReminderService {
   }
 
   /// Cancel a specific reminder
+  @override
   Future<void> cancelReminder(PillReminder reminder) async {
     try {
       await _notificationsPlugin.cancel(reminder.id.hashCode);
@@ -130,6 +134,7 @@ class ReminderService {
   }
 
   /// Cancel all reminders
+  @override
   Future<void> cancelAll() async {
     try {
       await _notificationsPlugin.cancelAll();
@@ -159,5 +164,3 @@ class ReminderService {
     return scheduledDate;
   }
 }
-
-final reminderService = ReminderService();

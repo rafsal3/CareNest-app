@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../models/medicine.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import '../providers/providers.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final remindersAsync = ref.watch(reminderProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA), // Soft background
       body: SafeArea(
@@ -15,27 +19,168 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Top Right Emergency Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: () => context.push('/emergency-support'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black87,
-                    elevation: 1,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+              // 1. User Header & Emergency
+              Row(
+                children: [
+                  // User Avatar
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.network(
+                      'https://i.pravatar.cc/150?u=user',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.person, color: Colors.grey);
+                      },
                     ),
                   ),
-                  icon: const Icon(Icons.shield_outlined, size: 18),
-                  label: const Text('Emergency'),
-                ),
+                  const SizedBox(width: 12),
+                  // Greeting & Name
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hai',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Text(
+                          'John Doe',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Emergency Button (Pill shaped)
+                  FilledButton.icon(
+                    onPressed: () => context.push('/emergency-support'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red[50],
+                      foregroundColor: Colors.red,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: const StadiumBorder(),
+                    ),
+                    icon: const Icon(Icons.shield_outlined, size: 18),
+                    label: const Text('Emergency'),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
-              // 2. Scan Card Section (Hero Area)
+              // 2. Next Appointment Section
+              const Text(
+                'Next Appointment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              // Appointment Card
+              InkWell(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Appointment Details')),
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Calendar Icon Container
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.calendar_month,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Dr. Sarah Smith',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Cardiologist',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 14,
+                                  color: Colors.grey[500],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Tomorrow, 10:40 AM',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // End Appointment Card
+              const SizedBox(height: 24),
               Container(
                 width: double.infinity,
                 height: 200,
@@ -92,7 +237,7 @@ class HomeScreen extends StatelessWidget {
               // 3. Previous Prescription Shortcut
               InkWell(
                 onTap: () {
-                  // Navigate to prescription history or details
+                  context.push('/prescription-history');
                 },
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
@@ -132,28 +277,48 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 16),
               SizedBox(
                 height: 180,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  clipBehavior: Clip.none,
-                  itemCount: _mockMedicines.length,
-                  itemBuilder: (context, index) {
-                    final medicine = _mockMedicines[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: GestureDetector(
-                        onTap:
-                            () => context.push(
-                              '/medicine-detail',
-                              extra: medicine,
-                            ),
-                        child: _MedicineCard(
-                          name: medicine.name,
-                          time: medicine.time,
-                          dosage: medicine.dosage,
-                          color: medicine.color,
-                          isActive: medicine.isCompleted,
+                child: remindersAsync.when(
+                  loading:
+                      () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Center(child: Text('Error: $err')),
+                  data: (reminders) {
+                    if (reminders.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No medicines today',
+                          style: TextStyle(color: Colors.grey[600]),
                         ),
-                      ),
+                      );
+                    }
+                    return ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      clipBehavior: Clip.none,
+                      itemCount: reminders.length,
+                      itemBuilder: (context, index) {
+                        final reminder = reminders[index];
+                        // Deterministic color based on name hash
+                        final color = Colors
+                            .primaries[reminder.medicineName.hashCode %
+                                Colors.primaries.length]
+                            .withValues(alpha: 0.2);
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 16.0),
+                          child: GestureDetector(
+                            onTap: () {
+                              context.push('/medicine-detail', extra: reminder);
+                            },
+                            child: _MedicineCard(
+                              name: reminder.medicineName,
+                              time: DateFormat.jm().format(reminder.time),
+                              dosage: reminder.dosage,
+                              color: color,
+                              isActive:
+                                  false, // Reminder logic for "taken" not fully in PillReminder yet
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -184,40 +349,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-final List<Medicine> _mockMedicines = [
-  const Medicine(
-    name: 'Metformin',
-    dosage: '500mg',
-    time: '8:00 AM',
-    frequency: 'Daily',
-    category: 'Diabetes',
-    type: 'Tablet',
-    color: Color(0xFFE3F2FD),
-    purpose: 'Controls high blood sugar in people with type 2 diabetes.',
-  ),
-  const Medicine(
-    name: 'Vitamin D3',
-    dosage: '1 capsule',
-    time: '1:00 PM',
-    frequency: 'Daily',
-    category: 'Supplement',
-    type: 'Capsule',
-    color: Color(0xFFF3E5F5),
-    purpose: 'Helps absorb calcium and promote bone growth.',
-    isCompleted: true,
-  ),
-  const Medicine(
-    name: 'Lisinopril',
-    dosage: '10mg',
-    time: '8:00 PM',
-    frequency: 'Daily',
-    category: 'Hypertension',
-    type: 'Tablet',
-    color: Color(0xFFE8F5E9),
-    purpose: 'Treats high blood pressure and heart failure.',
-  ),
-];
-
 class _MedicineCard extends StatelessWidget {
   final String name;
   final String time;
@@ -244,31 +375,33 @@ class _MedicineCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(20),
-            image: const DecorationImage(
-              image: NetworkImage(
-                'https://via.placeholder.com/100', // Placeholder for now
-              ),
-              fit: BoxFit.cover,
-              opacity: 0.2, // Blend with color
-            ),
           ),
-          child:
-              isActive
-                  ? Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        size: 20,
-                        color: Colors.green,
-                      ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  Icons.medication_outlined,
+                  size: 40,
+                  color: Colors.black.withValues(alpha: 0.1),
+                ),
+              ),
+              if (isActive)
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
-                  )
-                  : null,
+                    child: const Icon(
+                      Icons.check,
+                      size: 20,
+                      color: Colors.green,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         Text(

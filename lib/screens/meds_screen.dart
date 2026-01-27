@@ -1,166 +1,141 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../models/pill_reminder.dart';
-import '../services/reminder_service.dart';
-import '../services/storage_service.dart';
+import '../providers/providers.dart';
 
-class MedsScreen extends StatefulWidget {
+class MedsScreen extends ConsumerWidget {
   const MedsScreen({super.key});
 
   @override
-  State<MedsScreen> createState() => _MedsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final remindersState = ref.watch(reminderProvider);
 
-class _MedsScreenState extends State<MedsScreen> {
-  List<PillReminder> _reminders = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadReminders();
-  }
-
-  Future<void> _loadReminders() async {
-    setState(() => _isLoading = true);
-    final reminders = await storageService.getReminders();
-    setState(() {
-      _reminders = reminders;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _toggleReminder(PillReminder reminder, bool value) async {
-    final updatedReminder = reminder.copyWith(isActive: value);
-
-    // Update local list
-    final index = _reminders.indexWhere((r) => r.id == reminder.id);
-    if (index != -1) {
-      setState(() {
-        _reminders[index] = updatedReminder;
-      });
-    }
-
-    // Update storage
-    await storageService.saveReminders(_reminders);
-
-    // Schedule or Cancel notification
-    if (value) {
-      await reminderService.scheduleReminder(updatedReminder);
-    } else {
-      await reminderService.cancelReminder(updatedReminder);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Meds')),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _reminders.isEmpty
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.medication_outlined,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No reminders yet',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tap + to add a reminder',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
+      body: remindersState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (reminders) {
+          if (reminders.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.medication_outlined,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No reminders yet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap + to add a reminder',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: reminders.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final reminder = reminders[index];
+              return Dismissible(
+                key: Key(reminder.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
                 ),
-              )
-              : ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: _reminders.length,
-                separatorBuilder:
-                    (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final reminder = _reminders[index];
-                  return Card(
-                    elevation: 0,
-                    color:
-                        reminder.isActive
-                            ? Theme.of(context).colorScheme.surfaceContainer
-                            : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withOpacity(0.5),
-                    clipBehavior: Clip.antiAlias,
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
+                onDismissed: (direction) {
+                  ref.read(reminderProvider.notifier).removeReminder(reminder);
+                },
+                child: Card(
+                  elevation: 0,
+                  color:
+                      reminder.isActive
+                          ? Theme.of(context).colorScheme.surfaceContainer
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          reminder.isActive
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.medication,
+                        color:
                             reminder.isActive
-                                ? Theme.of(context).colorScheme.primaryContainer
+                                ? Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer
                                 : Theme.of(
                                   context,
-                                ).colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.medication,
-                          color:
-                              reminder.isActive
-                                  ? Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer
-                                  : Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      title: Text(
-                        reminder.medicineName,
-                        style: TextStyle(
-                          decoration:
-                              reminder.isActive
-                                  ? null
-                                  : TextDecoration.lineThrough,
-                          color:
-                              reminder.isActive
-                                  ? null
-                                  : Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${reminder.dosage} • ${reminder.frequency}\n${DateFormat.jm().format(reminder.time)}',
-                        style: TextStyle(
-                          color:
-                              reminder.isActive
-                                  ? null
-                                  : Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                      isThreeLine: true,
-                      trailing: Switch(
-                        value: reminder.isActive,
-                        onChanged: (value) => _toggleReminder(reminder, value),
+                                ).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  );
-                },
-              ),
+                    title: Text(
+                      reminder.medicineName,
+                      style: TextStyle(
+                        decoration:
+                            reminder.isActive
+                                ? null
+                                : TextDecoration.lineThrough,
+                        color:
+                            reminder.isActive
+                                ? null
+                                : Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${reminder.dosage} • ${reminder.frequency}\n${DateFormat.jm().format(reminder.time)}',
+                      style: TextStyle(
+                        color:
+                            reminder.isActive
+                                ? null
+                                : Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    isThreeLine: true,
+                    trailing: Switch(
+                      value: reminder.isActive,
+                      onChanged: (value) {
+                        ref
+                            .read(reminderProvider.notifier)
+                            .toggleReminder(reminder);
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await context.push('/add-reminder');
-          if (result == true) {
-            _loadReminders();
-          }
+        onPressed: () {
+          // Push and wait response if needed, but router push is enough as state updates automatically
+          context.push('/add-reminder');
         },
         child: const Icon(Icons.add),
       ),

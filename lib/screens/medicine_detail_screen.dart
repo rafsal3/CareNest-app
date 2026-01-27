@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../models/medicine.dart';
+import 'package:intl/intl.dart';
+import '../models/pill_reminder.dart';
 
 class MedicineDetailScreen extends StatelessWidget {
-  final Medicine medicine;
+  final PillReminder reminder;
 
-  const MedicineDetailScreen({super.key, required this.medicine});
+  const MedicineDetailScreen({super.key, required this.reminder});
 
   @override
   Widget build(BuildContext context) {
+    // Generate deterministic color and placeholder data
+    final color =
+        Colors.primaries[reminder.medicineName.hashCode %
+            Colors.primaries.length];
+
+    // Placeholder data since PillReminder doesn't have these yet
+    // In a real app, these would come from the DB/API
+    const String category = 'Antibiotic'; // Placeholder
+    const String type = 'Tablets'; // Placeholder
+    const String purpose =
+        'Used for treating bacterial infections. Take the full course as prescribed by your doctor to ensure effectiveness.';
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text('Medicine'),
         centerTitle: true,
@@ -35,67 +48,43 @@ class MedicineDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Hero Image
+                    // Hero Image Section
                     Container(
                       height: 200,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: medicine.color,
+                        color: color.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(24),
-                        image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://via.placeholder.com/300',
-                          ),
-                          fit: BoxFit.cover,
-                          opacity: 0.2,
-                        ),
+                        // In reality, this would be an image asset or network image
+                        // Using Icon for now as placeholder matching the visual request
                       ),
                       child: Center(
-                        child: Icon(
-                          Icons.medication,
-                          size: 64,
-                          color: Colors.black.withValues(alpha: 0.1),
-                        ),
+                        child: Icon(Icons.medication, size: 80, color: color),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Title & Dosage
+                    // Medicine Info Section
                     Text(
-                      medicine.name,
+                      reminder.medicineName,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      medicine.dosage,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
 
-                    // Tags (Category, Type)
+                    // Tags
                     Row(
                       children: [
-                        _TagChip(
-                          label: medicine.category,
-                          color: Colors.purple.shade50,
-                        ),
+                        _TagChip(label: category, color: Colors.purple.shade50),
                         const SizedBox(width: 12),
-                        _TagChip(
-                          label: medicine.type,
-                          color: Colors.orange.shade50,
-                        ),
+                        _TagChip(label: type, color: Colors.orange.shade50),
                       ],
                     ),
                     const SizedBox(height: 32),
 
-                    // Section: Purpose
+                    // Purpose Section
                     const Text(
                       'Purpose',
                       style: TextStyle(
@@ -104,30 +93,31 @@ class MedicineDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      medicine.purpose,
+                    const Text(
+                      purpose,
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey[700],
+                        color: Colors.black54,
                         height: 1.5,
                       ),
                     ),
                     const SizedBox(height: 32),
 
-                    // Info Row: Frequency & Time
+                    // Info Row (Frequency & Time)
                     Row(
                       children: [
                         Expanded(
                           child: _InfoItem(
                             label: 'Frequency',
-                            value: medicine.frequency,
+                            value: reminder.frequency,
                             icon: Icons.repeat,
                           ),
                         ),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: _InfoItem(
                             label: 'Time',
-                            value: medicine.time,
+                            value: DateFormat.jm().format(reminder.time),
                             icon: Icons.access_time,
                           ),
                         ),
@@ -137,28 +127,40 @@ class MedicineDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
+
             // Bottom Action Button
-            Padding(
+            Container(
               padding: const EdgeInsets.all(24.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
               child: SizedBox(
                 width: double.infinity,
                 height: 56,
-                child: FilledButton.icon(
+                child: FilledButton(
                   onPressed: () {
-                    // Logic to mark as completed
+                    // Action logic
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('${medicine.name} marked as taken'),
+                        content: Text(
+                          '${reminder.medicineName} marked as completed!',
+                        ),
                       ),
                     );
                     context.pop();
                   },
                   style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
                     backgroundColor: Colors.black,
+                    shape: const StadiumBorder(),
                   ),
-                  icon: const Icon(Icons.check),
-                  label: const Text(
+                  child: const Text(
                     'Mark as Completed',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -211,35 +213,48 @@ class _InfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Colors.grey[700]),
           ),
-          child: Icon(icon, size: 20, color: Colors.grey[600]),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-                fontWeight: FontWeight.w500,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -5,11 +5,13 @@ import 'screens/meds_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/add_reminder_screen.dart';
 import 'screens/history_screen.dart';
-import 'screens/emergency_screen.dart';
+import 'screens/chat_screen.dart';
 import 'screens/emergency_support_screen.dart';
 import 'widgets/scaffold_with_navigation.dart';
 import 'screens/medicine_detail_screen.dart';
-import 'models/medicine.dart';
+import 'screens/prescription_history_screen.dart';
+import 'screens/prescription_detail_screen.dart';
+import 'models/pill_reminder.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -51,8 +53,8 @@ final router = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/emergency',
-              builder: (context, state) => const EmergencyScreen(),
+              path: '/chat',
+              builder: (context, state) => const ChatScreen(),
             ),
           ],
         ),
@@ -72,8 +74,21 @@ final router = GoRouter(
       path: '/medicine-detail',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
-        final medicine = state.extra as Medicine;
-        return MedicineDetailScreen(medicine: medicine);
+        final reminder = state.extra as PillReminder;
+        return MedicineDetailScreen(reminder: reminder);
+      },
+    ),
+    GoRoute(
+      path: '/prescription-history',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const PrescriptionHistoryScreen(),
+    ),
+    GoRoute(
+      path: '/prescription-detail',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final date = state.extra as String;
+        return PrescriptionDetailScreen(date: date);
       },
     ),
     GoRoute(

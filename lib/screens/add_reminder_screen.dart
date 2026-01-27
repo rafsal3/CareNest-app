@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/pill_reminder.dart';
-import '../services/reminder_service.dart';
-import '../services/storage_service.dart';
+import '../providers/providers.dart';
 
-class AddReminderScreen extends StatefulWidget {
+class AddReminderScreen extends ConsumerStatefulWidget {
   const AddReminderScreen({super.key});
 
   @override
-  State<AddReminderScreen> createState() => _AddReminderScreenState();
+  ConsumerState<AddReminderScreen> createState() => _AddReminderScreenState();
 }
 
-class _AddReminderScreenState extends State<AddReminderScreen> {
+class _AddReminderScreenState extends ConsumerState<AddReminderScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _dosageController = TextEditingController();
@@ -59,13 +58,8 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
         isActive: true,
       );
 
-      // Save to storage
-      final reminders = await storageService.getReminders();
-      reminders.add(newReminder);
-      await storageService.saveReminders(reminders);
-
-      // Schedule notification
-      await reminderService.scheduleReminder(newReminder);
+      // Save using Riverpod provider
+      await ref.read(reminderProvider.notifier).addReminder(newReminder);
 
       if (mounted) {
         context.pop(true); // Return true to indicate refresh needed

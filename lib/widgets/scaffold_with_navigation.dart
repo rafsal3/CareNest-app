@@ -31,9 +31,9 @@ class ScaffoldWithNavigation extends StatelessWidget {
           ),
           NavigationDestination(icon: Icon(Icons.history), label: 'History'),
           NavigationDestination(
-            icon: Icon(Icons.emergency_outlined),
-            selectedIcon: Icon(Icons.emergency),
-            label: 'Emergency',
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Chat',
           ),
         ],
       ),
