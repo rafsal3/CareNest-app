@@ -3,7 +3,9 @@ import '../services/storage_service.dart';
 import '../services/reminder_service.dart';
 import '../services/interfaces/storage_service_interface.dart';
 import '../services/interfaces/reminder_service_interface.dart';
+import 'package:flutter/material.dart';
 import '../models/pill_reminder.dart';
+import '../models/activity.dart';
 
 // Services Providers
 final storageServiceProvider = Provider<IStorageService>((ref) {
@@ -85,4 +87,52 @@ class ReminderNotifier extends AsyncNotifier<List<PillReminder>> {
 final reminderProvider =
     AsyncNotifierProvider<ReminderNotifier, List<PillReminder>>(() {
       return ReminderNotifier();
+    });
+
+// Activity Controller
+class ActivityNotifier extends AsyncNotifier<List<Activity>> {
+  @override
+  Future<List<Activity>> build() async {
+    // Mock Data for now
+    return [
+      const Activity(
+        id: '1',
+        label: 'Morning Walk',
+        isCompleted: false,
+        icon: Icons.directions_walk,
+      ),
+      const Activity(
+        id: '2',
+        label: 'Breathing Exercises',
+        isCompleted: false,
+        icon: Icons.self_improvement,
+      ),
+      const Activity(
+        id: '3',
+        label: 'Drink Water',
+        isCompleted: true,
+        icon: Icons.local_drink,
+      ),
+    ];
+  }
+
+  Future<void> toggleActivity(String id) async {
+    final currentList = state.value ?? [];
+
+    // Optimistic update
+    final updatedList =
+        currentList.map((activity) {
+          if (activity.id == id) {
+            return activity.copyWith(isCompleted: !activity.isCompleted);
+          }
+          return activity;
+        }).toList();
+
+    state = AsyncValue.data(updatedList);
+  }
+}
+
+final activityProvider =
+    AsyncNotifierProvider<ActivityNotifier, List<Activity>>(() {
+      return ActivityNotifier();
     });

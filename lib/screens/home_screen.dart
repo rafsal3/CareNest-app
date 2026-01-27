@@ -2,13 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../models/activity.dart';
 import '../providers/providers.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final Set<String> _takenMedicineIds = {};
+
+  void _toggleMedicineTaken(String id) {
+    setState(() {
+      if (_takenMedicineIds.contains(id)) {
+        _takenMedicineIds.remove(id);
+      } else {
+        _takenMedicineIds.add(id);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final remindersAsync = ref.watch(reminderProvider);
 
     return Scaffold(
@@ -94,9 +112,7 @@ class HomeScreen extends ConsumerWidget {
               // Appointment Card
               InkWell(
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Appointment Details')),
-                  );
+                  context.push('/appointment-detail');
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
@@ -183,14 +199,12 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               Container(
                 width: double.infinity,
-                height: 200,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Row(
                       children: [
@@ -228,6 +242,15 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Scan prescription or medicine label',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -302,19 +325,21 @@ class HomeScreen extends ConsumerWidget {
                                 Colors.primaries.length]
                             .withValues(alpha: 0.2);
 
+                        final isTaken = _takenMedicineIds.contains(reminder.id);
+
                         return Padding(
                           padding: const EdgeInsets.only(right: 16.0),
-                          child: GestureDetector(
-                            onTap: () {
-                              context.push('/medicine-detail', extra: reminder);
+                          child: _InteractiveScaleButton(
+                            onPressed: () {
+                              _toggleMedicineTaken(reminder.id);
                             },
                             child: _MedicineCard(
+                              id: reminder.id,
                               name: reminder.medicineName,
                               time: DateFormat.jm().format(reminder.time),
                               dosage: reminder.dosage,
                               color: color,
-                              isActive:
-                                  false, // Reminder logic for "taken" not fully in PillReminder yet
+                              isTaken: isTaken,
                             ),
                           ),
                         );
@@ -331,14 +356,109 @@ class HomeScreen extends ConsumerWidget {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Column(
-                children: [
-                  _ActivityCard(label: 'Drink 2L water', isChecked: false),
-                  SizedBox(height: 12),
-                  _ActivityCard(label: 'Walk 5000 steps', isChecked: false),
-                  SizedBox(height: 12),
-                  _ActivityCard(label: 'Sleep 8 hours', isChecked: false),
-                ],
+              Consumer(
+                builder: (context, ref, child) {
+                  final activityAsync = ref.watch(activityProvider);
+
+                  return activityAsync.when(
+                    loading:
+                        () => const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Text('Error: $err'),
+                    data: (activities) {
+                      final completedCount =
+                          activities.where((a) => a.isCompleted).length;
+                      final progress =
+                          activities.isEmpty
+                              ? 0.0
+                              : completedCount / activities.length;
+
+                      return Column(
+                        children: [
+                          // Progress Bar
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '$completedCount / ${activities.length} Completed',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${(progress * 100).toInt()}%',
+                                style: TextStyle(
+                                  color: Colors.blueAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: Colors.grey[200],
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.blueAccent,
+                              ),
+                              minHeight: 6,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Activity List
+                          ...activities.map((activity) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Dismissible(
+                                key: Key(activity.id),
+                                direction: DismissDirection.startToEnd,
+                                background: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.only(left: 20),
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.check, color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Complete',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                confirmDismiss: (direction) async {
+                                  // Optimistically toggle and return false to keep the item in list
+                                  ref
+                                      .read(activityProvider.notifier)
+                                      .toggleActivity(activity.id);
+                                  return false; // Don't actually remove efficiently
+                                },
+                                child: _ActivityCard(
+                                  activity: activity,
+                                  onToggle: () {
+                                    ref
+                                        .read(activityProvider.notifier)
+                                        .toggleActivity(activity.id);
+                                  },
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      );
+                    },
+                  );
+                },
               ),
               const SizedBox(height: 32), // Bottom padding
             ],
@@ -350,125 +470,265 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _MedicineCard extends StatelessWidget {
+  final String id;
   final String name;
   final String time;
   final String dosage;
   final Color color;
-  final bool isActive;
+  final bool isTaken;
 
   const _MedicineCard({
+    required this.id,
     required this.name,
     required this.time,
     required this.dosage,
     required this.color,
-    this.isActive = false,
+    this.isTaken = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Stack(
-            children: [
-              Center(
-                child: Icon(
-                  Icons.medication_outlined,
-                  size: 40,
-                  color: Colors.black.withValues(alpha: 0.1),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: isTaken ? 0.7 : 1.0,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 200),
+        scale: isTaken ? 0.98 : 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Hero(
+              tag: 'medicine_icon_$id',
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Icon(
+                        Icons.medication_outlined,
+                        size: 40,
+                        color: Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isTaken ? 1.0 : 0.0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            size: 24,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (isActive)
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      size: 20,
-                      color: Colors.green,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              time,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: isTaken ? Colors.grey : Colors.black,
+                decoration: isTaken ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            Text(
+              name,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: isTaken ? Colors.grey : Colors.black,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              dosage,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          time,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-        ),
-        Text(
-          name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          dosage,
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          maxLines: 1, // Added maxLines
-          overflow: TextOverflow.ellipsis, // Added ellipsis
-        ),
-      ],
+      ),
+    );
+  }
+}
+
+class _InteractiveScaleButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onPressed;
+
+  const _InteractiveScaleButton({required this.child, required this.onPressed});
+
+  @override
+  State<_InteractiveScaleButton> createState() =>
+      _InteractiveScaleButtonState();
+}
+
+class _InteractiveScaleButtonState extends State<_InteractiveScaleButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.96,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onPressed();
+      },
+      onTapCancel: () => _controller.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder:
+            (context, child) =>
+                Transform.scale(scale: _scaleAnimation.value, child: child),
+        child: widget.child,
+      ),
     );
   }
 }
 
 class _ActivityCard extends StatelessWidget {
-  final String label;
-  final bool isChecked;
+  final Activity activity;
+  final VoidCallback onToggle;
 
-  const _ActivityCard({required this.label, required this.isChecked});
+  const _ActivityCard({required this.activity, required this.onToggle});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04), // Replaced withOpacity
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        opacity: activity.isCompleted ? 0.6 : 1.0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          decoration: BoxDecoration(
+            color: activity.isCompleted ? Colors.grey[50] : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: activity.isCompleted ? 0.01 : 0.04,
+                ),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.grey[300]!, width: 2),
-              color: isChecked ? Colors.black : Colors.transparent,
-            ),
-            child:
-                isChecked
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
+          child: Row(
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:
+                      activity.isCompleted ? Colors.grey[200] : Colors.blue[50],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  activity.icon,
+                  size: 20,
+                  color: activity.isCompleted ? Colors.grey : Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Text
+              Expanded(
+                child: Text(
+                  activity.label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    decoration:
+                        activity.isCompleted
+                            ? TextDecoration.lineThrough
+                            : null,
+                    decorationColor: Colors.grey,
+                    color:
+                        activity.isCompleted
+                            ? Colors.grey[600]
+                            : Colors.black87,
+                  ),
+                ),
+              ),
+              // Checkbox
+              AnimatedScale(
+                scale: activity.isCompleted ? 1.0 : 1.0,
+                // A subtle bounce could be done with a Stateful widget but simple scale can work if we toggle values.
+                // Assuming simple transition for now as requested.
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          activity.isCompleted
+                              ? Colors.green
+                              : Colors.grey[300]!,
+                      width: 2,
+                    ),
+                    color:
+                        activity.isCompleted
+                            ? Colors.green
+                            : Colors.transparent,
+                  ),
+                  child:
+                      activity.isCompleted
+                          ? const Center(
+                            child: Icon(
+                              Icons.check,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          )
+                          : null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

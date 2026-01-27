@@ -49,17 +49,18 @@ class MedicineDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Hero Image Section
-                    Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(24),
-                        // In reality, this would be an image asset or network image
-                        // Using Icon for now as placeholder matching the visual request
-                      ),
-                      child: Center(
-                        child: Icon(Icons.medication, size: 80, color: color),
+                    Hero(
+                      tag: 'medicine_icon_${reminder.id}',
+                      child: Container(
+                        height: 200,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Center(
+                          child: Icon(Icons.medication, size: 80, color: color),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
