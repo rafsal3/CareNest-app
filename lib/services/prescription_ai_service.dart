@@ -25,21 +25,31 @@ class PrescriptionAiService {
   PrescriptionAiService()
     : _dio = Dio(
         BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 30),
+          connectTimeout: const Duration(seconds: 60),
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 120),
         ),
       );
 
   Future<List<ParsedMedicine>> analyzePrescription(File imageFile) async {
+    final int fileSize = await imageFile.length();
+    final String fileName = imageFile.path.split('/').last;
+
+    if (kDebugMode) {
+      print('🚀 [Upload Start] Time: ${DateTime.now()}');
+      print('📄 File: ${imageFile.path}');
+      print('📦 Size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+    }
+
     try {
       if (!imageFile.existsSync()) {
-        throw UploadException('Image file not found');
+        throw UploadException('Image file not found at ${imageFile.path}');
       }
 
       final formData = FormData.fromMap({
         'image': await MultipartFile.fromFile(
           imageFile.path,
-          // Content type is auto-detected by Dio
+          filename: fileName,
         ),
       });
 
@@ -47,11 +57,17 @@ class PrescriptionAiService {
         _baseUrl,
         data: formData,
         onSendProgress: (int sent, int total) {
-          if (kDebugMode) {
-            print('Upload progress: $sent / $total');
+          if (kDebugMode && total > 0) {
+            final progress = (sent / total * 100).toStringAsFixed(1);
+            print('⬆️ Upload Progress: $progress% ($sent/$total)');
           }
         },
       );
+
+      if (kDebugMode) {
+        print('✅ [Upload Success] Status: ${response.statusCode}');
+        print('📥 Response Body: ${response.data}');
+      }
 
       return _parseResponse(response.data);
     } on DioException catch (e) {

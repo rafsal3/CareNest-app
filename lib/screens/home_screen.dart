@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/activity.dart';
 import '../models/parsed_medicine.dart';
 import '../providers/providers.dart';
-import '../services/ai_prescription_service.dart';
+import '../services/prescription_ai_service.dart';
 import '../utils/image_helper.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -19,7 +19,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Set<String> _takenMedicineIds = {};
-  final AiPrescriptionService _aiService = AiPrescriptionService();
+  final PrescriptionAiService _aiService = PrescriptionAiService();
 
   void _toggleMedicineTaken(String id) {
     setState(() {
@@ -75,7 +75,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         throw Exception("Failed to process image. Please try another.");
       }
 
-      final results = await _aiService.uploadPrescription(safeFile);
+      final results = await _aiService.analyzePrescription(safeFile);
 
       if (!mounted) return;
       Navigator.pop(context); // Dismiss loading dialog
