@@ -1,9 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'network/dio_api_client.dart';
 import 'services/impl/auth_service.dart';
-import 'storage/token_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,26 +38,9 @@ class _AuthTestScreenState extends State<AuthTestScreen> {
   }
 
   void _initService() {
-    const storage = FlutterSecureStorage();
-    final tokenStorage = TokenStorage(storage: storage);
+    _authService = AuthService();
 
-    // Android Emulator uses 10.0.2.2, iOS Simulator uses localhost
-    final baseUrl =
-        Platform.isAndroid
-            ? 'http://10.0.2.2:3000/api'
-            : 'http://localhost:3000/api';
-
-    final apiClient = DioApiClient(
-      baseUrl: baseUrl,
-      tokenStorage: tokenStorage,
-    );
-
-    _authService = AuthService(
-      apiClient: apiClient,
-      tokenStorage: tokenStorage,
-    );
-
-    _log('Service Initialized');
+    _log('Service Initialized (Local Mode)');
   }
 
   void _log(String message) {

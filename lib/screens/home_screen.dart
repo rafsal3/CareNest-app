@@ -356,13 +356,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               dosage: reminder.dosage,
                               color: color,
                               isTaken: isTaken,
-                              // On tap opens edit screen (to be implemented)
+                              // On tap opens detail screen
                               onTap: () {
-                                // For now just log, later navigation
-                                debugPrint(
-                                  'Edit medicine: ${reminder.medicineName}',
+                                context.push(
+                                  '/medicine-detail',
+                                  extra: reminder,
                                 );
-                                // context.push('/edit-medicine/${reminder.id}');
                               },
                             ),
                           ),

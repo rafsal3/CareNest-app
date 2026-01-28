@@ -34,28 +34,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     initialLocation: '/home',
     redirect: (context, state) {
-      final authState = ref.read(authProvider);
-      final isLoggedIn = authState.isAuthenticated;
-      final isLoading = authState.isLoading;
-
-      // If initializing, stay put or show splash (handled by BootstrapWrapper usually,
-      // but router might run before BootstrapWrapper is done if we are not careful.
-      // Actually we are wrapping MyApp in BootstrapWrapper, so MyApp builds first.
-      // But routerConfig is needed by MaterialApp.
-      // If we are loading, we might want to let the Loading screen handle it.
-      if (isLoading) return null;
+      // Auth removed. Always allow access.
+      // If user tries to go to login/register, maybe redirect to home?
+      // Or just let them go there (though they won't do anything).
 
       final isLoggingIn =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
 
-      if (!isLoggedIn) {
-        if (!isLoggingIn) return '/login';
-        return null; // Stay on login/register
-      }
-
       if (isLoggingIn) {
-        return '/home'; // Redirect to home if already logged in
+        return '/home'; // Redirect to home if they try to access login
       }
 
       return null;
