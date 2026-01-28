@@ -44,9 +44,8 @@ final medicineServiceProvider = Provider<MedicineServiceInterface>((ref) {
 });
 
 final authServiceProvider = Provider<AuthServiceInterface>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
   final tokenStorage = ref.watch(tokenStorageProvider);
-  return AuthService(apiClient: apiClient, tokenStorage: tokenStorage);
+  return AuthService(tokenStorage: tokenStorage);
 });
 
 // Auth State

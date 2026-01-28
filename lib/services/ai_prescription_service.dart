@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../models/parsed_medicine.dart';
 
+import 'package:http_parser/http_parser.dart';
+
 class AiPrescriptionService {
   static const String _baseUrl =
       'https://care-nest-ai-production-ba74.up.railway.app/analyze';
@@ -14,7 +16,11 @@ class AiPrescriptionService {
       final request = http.MultipartRequest('POST', uri);
 
       request.files.add(
-        await http.MultipartFile.fromPath('image', imageFile.path),
+        await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
       );
 
       if (kDebugMode) {
