@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/storage_service.dart';
 import '../services/reminder_service.dart';
@@ -15,6 +16,7 @@ import '../services/interfaces/medicine_service_interface.dart';
 import '../services/interfaces/auth_service_interface.dart';
 import '../models/user.dart';
 import '../models/medicine.dart';
+import '../models/medicine_draft.dart';
 
 // Services Providers
 final storageServiceProvider = Provider<IStorageService>((ref) {
@@ -32,10 +34,12 @@ final tokenStorageProvider = Provider<TokenStorage>((ref) {
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
-  return DioApiClient(
-    baseUrl: 'http://10.0.2.2:3000/api',
-    tokenStorage: tokenStorage,
-  );
+  final baseUrl =
+      Platform.isAndroid
+          ? 'http://10.0.2.2:3000/api'
+          : 'http://localhost:3000/api';
+
+  return DioApiClient(baseUrl: baseUrl, tokenStorage: tokenStorage);
 });
 
 final medicineServiceProvider = Provider<MedicineServiceInterface>((ref) {
@@ -208,6 +212,73 @@ class ReminderNotifier extends AsyncNotifier<List<PillReminder>> {
       await _reminderService.cancelReminder(reminder);
       return newList;
     });
+  }
+
+  Future<void> saveMedicineFromDraft(MedicineDraft draft) async {
+    final currentList = state.value ?? [];
+    // Don't set loading state to avoid UI flicker/reset
+
+    // Create local reminders from draft
+    final newReminders = <PillReminder>[];
+    for (final time in draft.scheduleTimes) {
+      newReminders.add(
+        PillReminder(
+          id:
+              DateTime.now().millisecondsSinceEpoch.toString() +
+              time.millisecondsSinceEpoch.toString(), // unique id
+          medicineName: draft.name ?? 'Unknown Medicine',
+          dosage: draft.dosage ?? 'As prescribed',
+          frequency: '${draft.frequencyPerDay ?? 1}x daily', // Added frequency
+          time: time,
+          isActive: true,
+        ),
+      );
+    }
+
+    // fallback logic: "Mock" store is just our local StorageService
+    // In a real app, we'd try await _medicineService.create(...) here.
+    // For now, we simulate backend failure/success or just proceed to local save as the "Mock Store" is the source of truth for "Medicine Today" in this app currently.
+
+    // We update state immediately (Optimistic)
+    final combinedList = [...currentList, ...newReminders];
+    state = AsyncValue.data(combinedList);
+
+    try {
+      // 1. Persist to Local Storage (This acts as our Mock Store / Cache)
+      await _storageService.saveReminders(combinedList);
+
+      // 2. Schedule Notifications
+      for (final reminder in newReminders) {
+        await _reminderService.scheduleReminder(reminder);
+      }
+
+      // 3. Attempt Backend Sync (Fire and Forget)
+      _syncToBackend(draft);
+    } catch (e) {
+      // Revert if local save fails? Unlikely.
+      debugPrint('Error saving draft: $e');
+    }
+  }
+
+  Future<void> _syncToBackend(MedicineDraft draft) async {
+    try {
+      final medicineService = ref.read(medicineServiceProvider);
+      // Determine type from dosage or just default
+      // API requires name and type.
+      // Note: Backend might deduplicate by name.
+      debugPrint('🔄 [DIAGNOSTICS] Syncing to backend: ${draft.name}');
+      final medicine = await medicineService.createMedicine(
+        draft.name ?? 'Unknown',
+        'Tablet', // Default type if not parsed
+      );
+      debugPrint('✅ [DIAGNOSTICS] Backend Sync Success: ${medicine.id}');
+
+      // Optionally create reminders on backend too if that API exists
+      // but for now we persisted medicine which is the requirement.
+    } catch (e) {
+      debugPrint('❌ [DIAGNOSTICS] Backend Sync Failed: $e');
+      // We don't fail the UI flow because we have local storage
+    }
   }
 
   Future<void> toggleReminder(PillReminder reminder) async {

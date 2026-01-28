@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../models/medicine.dart';
 import '../../network/api_client.dart';
 import '../interfaces/medicine_service_interface.dart';
@@ -81,11 +82,11 @@ class MedicineService implements MedicineServiceInterface {
   }
 
   @override
-  Future<Medicine> createTestMedicine(String name, String type) async {
+  Future<Medicine> createMedicine(String name, String type) async {
     try {
       final payload = {
         'name': name,
-        'genericName': 'Antigravity',
+        'genericName': '',
         'type': type,
         'medicineType': type,
       };
@@ -97,10 +98,30 @@ class MedicineService implements MedicineServiceInterface {
       }
       throw Exception('Creation failed: Invalid response');
     } catch (e, stack) {
-      print('❌ [MedicineService] Creation Error: $e');
-      print(stack);
+      debugPrint('❌ [MedicineService] Creation Error: $e');
+      debugPrint(stack.toString());
       rethrow;
     }
+  }
+
+  @override
+  Future<Medicine> updateMedicine(int id, Map<String, dynamic> updates) async {
+    try {
+      final response = await _apiClient.put('/medicines/$id', data: updates);
+      if (response is Map<String, dynamic> && response['success'] == true) {
+        return Medicine.fromJson(response['data'] as Map<String, dynamic>);
+      }
+      throw Exception('Update failed: Invalid response');
+    } catch (e, stack) {
+      debugPrint('❌ [MedicineService] Update Error: $e');
+      debugPrint(stack.toString());
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Medicine> createTestMedicine(String name, String type) async {
+    return createMedicine(name, type);
   }
 
   @override
@@ -114,8 +135,8 @@ class MedicineService implements MedicineServiceInterface {
       }
       throw Exception('Fetch failed');
     } catch (e, stack) {
-      print('❌ [MedicineService] Fetch Error: $e');
-      print(stack);
+      debugPrint('❌ [MedicineService] Fetch Error: $e');
+      debugPrint(stack.toString());
       rethrow;
     }
   }

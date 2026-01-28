@@ -18,6 +18,9 @@ import 'models/prescription.dart';
 import 'models/pill_reminder.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/edit_medicine_screen.dart';
+import 'models/medicine.dart';
+import 'models/medicine_draft.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -35,14 +38,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.isAuthenticated;
       final isLoading = authState.isLoading;
 
-      // If initializing, stay put or show splash (handled by BootstrapWrapper usually, 
-      // but router might run before BootstrapWrapper is done if we are not careful. 
-      // Actually we are wrapping MyApp in BootstrapWrapper, so MyApp builds first. 
+      // If initializing, stay put or show splash (handled by BootstrapWrapper usually,
+      // but router might run before BootstrapWrapper is done if we are not careful.
+      // Actually we are wrapping MyApp in BootstrapWrapper, so MyApp builds first.
       // But routerConfig is needed by MaterialApp.
       // If we are loading, we might want to let the Loading screen handle it.
       if (isLoading) return null;
 
-      final isLoggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final isLoggingIn =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
 
       if (!isLoggedIn) {
         if (!isLoggingIn) return '/login';
@@ -56,10 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
@@ -113,7 +115,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomTransitionPage(
             key: state.pageKey,
             child: MedicineDetailScreen(reminder: reminder),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
               const begin = Offset(0, 0.05);
               const end = Offset.zero;
               const curve = Curves.easeOut;
@@ -166,6 +173,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ChatScreen(),
+      ),
+      GoRoute(
+        path: '/edit-medicine',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>?;
+          return EditMedicineScreen(
+            medicine: extras?['medicine'] as Medicine?,
+            draft: extras?['draft'] as MedicineDraft?,
+            isNew: extras?['isNew'] ?? false,
+          );
+        },
       ),
     ],
   );

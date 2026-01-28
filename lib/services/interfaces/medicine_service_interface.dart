@@ -16,7 +16,11 @@ abstract class MedicineServiceInterface {
   /// Temporary method to test backend connectivity
   Future<int> testFetchMedicinesCount();
 
+  /// Update existing medicine
+  Future<Medicine> updateMedicine(int id, Map<String, dynamic> updates);
+
   /// Create a test medicine for persistence check
+  Future<Medicine> createMedicine(String name, String type);
   Future<Medicine> createTestMedicine(String name, String type);
 
   /// Fetch all medicines with debug logging

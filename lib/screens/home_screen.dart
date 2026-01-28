@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import '../models/activity.dart';
-import '../models/parsed_medicine.dart';
 import '../providers/providers.dart';
-import '../services/prescription_ai_service.dart';
-import '../utils/image_helper.dart';
+import '../widgets/medicine_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +15,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final Set<String> _takenMedicineIds = {};
-  final PrescriptionAiService _aiService = PrescriptionAiService();
 
   void _toggleMedicineTaken(String id) {
     setState(() {
@@ -29,296 +24,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _takenMedicineIds.add(id);
       }
     });
-  }
-
-  Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    try {
-      // 1. Pick Image with native resizing (First line of defense)
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (image == null) return;
-
-      if (!mounted) return;
-
-      // Show loading dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (context) => const Center(
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('Analyzing Prescription...'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-      );
-
-      // 2. Further compress/verify with ImageHelper (Second line of defense & conversion to File)
-      final File? safeFile = await ImageHelper.compressImage(File(image.path));
-
-      if (safeFile == null) {
-        throw Exception("Failed to process image. Please try another.");
-      }
-
-      final results = await _aiService.analyzePrescription(safeFile);
-
-      if (!mounted) return;
-      Navigator.pop(context); // Dismiss loading dialog
-
-      _showResultsSheet(results);
-    } catch (e) {
-      if (!mounted) return;
-      // Check if dialog is open (it might be closed if crash happened before dialog)
-      // A simple way is to check navigation stack, but here we just pop if we can.
-      // Since we can't easily check, we rely on the fact we opened it.
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString().replaceAll("Exception:", "")}'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: Colors.white,
-            onPressed: _pickAndUploadImage,
-          ),
-        ),
-      );
-    }
-  }
-
-  void _showResultsSheet(List<ParsedMedicine> medicines) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF8F9FA),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder:
-          (context) => DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.4,
-            maxChildSize: 0.9,
-            expand: false,
-            builder:
-                (context, scrollController) => Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Found ${medicines.length} Medicines',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.separated(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(24),
-                        itemCount: medicines.length,
-                        separatorBuilder:
-                            (context, index) => const SizedBox(height: 16),
-                        itemBuilder: (context, index) {
-                          final medicine = medicines[index];
-                          return Card(
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: Colors.grey[200]!),
-                            ),
-                            color: Colors.white,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue[50],
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.medication,
-                                          color: Colors.blue[700],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              medicine.medicineName,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            if (medicine.genericName.isNotEmpty)
-                                              Text(
-                                                medicine.genericName,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[100],
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          medicine.medicineType,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.grey[800],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Divider(height: 24),
-                                  _buildDetailRow(
-                                    Icons.calendar_today,
-                                    'Duration',
-                                    medicine.duration,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _buildDetailRow(
-                                    Icons.access_time,
-                                    'Timing',
-                                    medicine.timing,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _buildDetailRow(
-                                    Icons.medical_services_outlined,
-                                    'Dosage',
-                                    medicine.dosage,
-                                  ),
-
-                                  if (medicine.warnings.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.orange[100]!,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.warning_amber_rounded,
-                                            size: 20,
-                                            color: Colors.orange[800],
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              medicine.warnings,
-                                              style: TextStyle(
-                                                color: Colors.orange[900],
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-          ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[500]),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-          ),
-        ),
-      ],
-    );
   }
 
   @override
@@ -538,40 +243,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => context.push('/scan'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E1E1E),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: const Icon(Icons.camera_alt_outlined),
-                            label: const Text('Scan'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/scan'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E1E1E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: FilledButton.icon(
-                            label: const Text('Upload'),
-                            onPressed: _pickAndUploadImage,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: const Icon(Icons.upload_file),
-                          ),
-                        ),
-                      ],
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('Scan Prescription'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -663,13 +349,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             onPressed: () {
                               _toggleMedicineTaken(reminder.id);
                             },
-                            child: _MedicineCard(
+                            child: MedicineCard(
                               id: reminder.id,
                               name: reminder.medicineName,
                               time: DateFormat.jm().format(reminder.time),
                               dosage: reminder.dosage,
                               color: color,
                               isTaken: isTaken,
+                              // On tap opens edit screen (to be implemented)
+                              onTap: () {
+                                // For now just log, later navigation
+                                debugPrint(
+                                  'Edit medicine: ${reminder.medicineName}',
+                                );
+                                // context.push('/edit-medicine/${reminder.id}');
+                              },
                             ),
                           ),
                         );
@@ -793,107 +487,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 32), // Bottom padding
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MedicineCard extends StatelessWidget {
-  final String id;
-  final String name;
-  final String time;
-  final String dosage;
-  final Color color;
-  final bool isTaken;
-
-  const _MedicineCard({
-    required this.id,
-    required this.name,
-    required this.time,
-    required this.dosage,
-    required this.color,
-    this.isTaken = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: isTaken ? 0.7 : 1.0,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 200),
-        scale: isTaken ? 0.98 : 1.0,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Hero(
-              tag: 'medicine_icon_$id',
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Icon(
-                        Icons.medication_outlined,
-                        size: 40,
-                        color: Colors.black.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: isTaken ? 1.0 : 0.0,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            size: 24,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              time,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: isTaken ? Colors.grey : Colors.black,
-                decoration: isTaken ? TextDecoration.lineThrough : null,
-              ),
-            ),
-            Text(
-              name,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: isTaken ? Colors.grey : Colors.black,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              dosage,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ),
       ),
     );

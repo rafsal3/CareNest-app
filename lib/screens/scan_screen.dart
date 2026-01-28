@@ -2,20 +2,24 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/parsed_medicine.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+import '../models/medicine_draft.dart';
+import '../providers/providers.dart';
 import '../services/prescription_ai_service.dart';
 import '../utils/image_helper.dart';
 
-class ScanScreen extends StatefulWidget {
+class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
 
   @override
-  State<ScanScreen> createState() => _ScanScreenState();
+  ConsumerState<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen> {
+class _ScanScreenState extends ConsumerState<ScanScreen> {
   File? _image;
-  List<ParsedMedicine>? _parsedMedicines;
   final ImagePicker _picker = ImagePicker();
   bool _isProcessing = false;
   final PrescriptionAiService _aiService = PrescriptionAiService();
@@ -41,7 +45,6 @@ class _ScanScreenState extends State<ScanScreen> {
 
         setState(() {
           _image = safeFile;
-          _parsedMedicines = null; // Reset results on new image
         });
         _analyzeImage(); // Auto-upload on selection
       }
@@ -60,18 +63,29 @@ class _ScanScreenState extends State<ScanScreen> {
 
     setState(() {
       _isProcessing = true;
-      _parsedMedicines = null;
     });
 
     try {
       final results = await _aiService.analyzePrescription(_image!);
-      if (mounted) {
-        setState(() {
-          _parsedMedicines = results;
-        });
+
+      if (!mounted) return;
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      if (results.isNotEmpty) {
+        _showConfirmationSheet(results);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No medicines found in the image.')),
+        );
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString()),
@@ -79,20 +93,131 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
     }
   }
 
   void _clearSelection() {
     setState(() {
       _image = null;
-      _parsedMedicines = null;
     });
+  }
+
+  void _showConfirmationSheet(List<MedicineDraft> drafts) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder:
+                (context, scrollController) => Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Confirm Medicines',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(24),
+                        itemCount: drafts.length,
+                        separatorBuilder:
+                            (context, index) => const SizedBox(height: 24),
+                        itemBuilder: (context, index) {
+                          final draft = drafts[index];
+                          return _DraftMedicineCard(
+                            draft: draft,
+                            onSave: () async {
+                              // Navigate to Edit/Save Screen
+                              context
+                                  .push(
+                                    '/edit-medicine',
+                                    extra: {'draft': draft, 'isNew': true},
+                                  )
+                                  .then((result) {
+                                    if (result == true && context.mounted) {
+                                      // Remove from local list if saved?
+                                      // For simplicity just close sheet or show success
+                                      // Ideally we keep track of what's saved.
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Saved ${draft.name}'),
+                                        ),
+                                      );
+                                    }
+                                  });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Done'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+          ),
+    );
   }
 
   @override
@@ -116,10 +241,10 @@ class _ScanScreenState extends State<ScanScreen> {
           children: [
             // Image Preview Area
             Container(
-              height: 250,
+              height: 300,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
@@ -134,8 +259,23 @@ class _ScanScreenState extends State<ScanScreen> {
                           if (_isProcessing)
                             Container(
                               color: Colors.black45,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'AI is reading prescription...',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -173,6 +313,12 @@ class _ScanScreenState extends State<ScanScreen> {
                       onPressed: () => _pickImage(ImageSource.camera),
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Camera'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -181,27 +327,16 @@ class _ScanScreenState extends State<ScanScreen> {
                       onPressed: () => _pickImage(ImageSource.gallery),
                       icon: const Icon(Icons.photo_library),
                       label: const Text('Gallery'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ],
-              )
-            else if (_isProcessing)
-              const Center(
-                child: Text('Analyzing prescription... Please wait.'),
               ),
-
-            // Results Area
-            if (_parsedMedicines != null) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Found ${_parsedMedicines!.length} Medicines',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              ..._parsedMedicines!.map(
-                (medicine) => _MedicineCard(medicine: medicine),
-              ),
-            ],
           ],
         ),
       ),
@@ -209,143 +344,141 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 }
 
-class _MedicineCard extends StatelessWidget {
-  final ParsedMedicine medicine;
+class _DraftMedicineCard extends StatelessWidget {
+  final MedicineDraft draft;
+  final VoidCallback? onSave;
 
-  const _MedicineCard({required this.medicine});
+  const _DraftMedicineCard({required this.draft, this.onSave});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.medication, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        medicine.medicineName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      if (medicine.genericName.isNotEmpty)
-                        Text(
-                          medicine.genericName,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
-                  ),
-                ),
-                Chip(
-                  label: Text(medicine.medicineType),
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            _buildInfoRow(
-              context,
-              Icons.calendar_today,
-              'Duration',
-              medicine.duration,
-            ),
-            _buildInfoRow(
-              context,
-              Icons.access_time,
-              'Timing',
-              medicine.timing,
-            ),
-            _buildInfoRow(
-              context,
-              Icons.numbers,
-              'Frequency',
-              '${medicine.dailyFrequencyCount}x daily',
-            ),
-            _buildInfoRow(
-              context,
-              Icons.medical_services,
-              'Dosage',
-              medicine.dosage,
-            ),
-
-            if (medicine.warnings.isNotEmpty) ...[
-              const SizedBox(height: 12),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.errorContainer.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
+                child: Icon(Icons.medication, color: Colors.blue[700]),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.warning_amber,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        medicine.warnings,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                    Text(
+                      draft.name ?? 'Unknown Medicine',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    Text(
+                      draft.dosage ?? '',
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value,
-  ) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: Theme.of(context).hintColor),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Theme.of(context).hintColor,
-                fontWeight: FontWeight.w500,
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _InfoItem(
+                label: 'Frequency',
+                value: '${draft.frequencyPerDay ?? 1}x daily',
               ),
+              _InfoItem(
+                label: 'Duration',
+                value: '${draft.durationDays ?? 1} days',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Scheduled Times:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: Colors.grey,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children:
+                draft.scheduleTimes.map((time) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      DateFormat.jm().format(time),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                }).toList(),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onSave,
+              icon: const Icon(Icons.edit),
+              label: const Text('Review & Save'),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoItem extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }
