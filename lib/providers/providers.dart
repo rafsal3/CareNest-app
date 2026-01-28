@@ -6,6 +6,15 @@ import '../services/interfaces/reminder_service_interface.dart';
 import 'package:flutter/material.dart';
 import '../models/pill_reminder.dart';
 import '../models/activity.dart';
+import '../network/api_client.dart';
+import '../network/dio_api_client.dart';
+import '../storage/token_storage.dart';
+import '../services/impl/medicine_service.dart';
+import '../services/impl/auth_service.dart';
+import '../services/interfaces/medicine_service_interface.dart';
+import '../services/interfaces/auth_service_interface.dart';
+import '../models/user.dart';
+import '../models/medicine.dart';
 
 // Services Providers
 final storageServiceProvider = Provider<IStorageService>((ref) {
@@ -14,6 +23,146 @@ final storageServiceProvider = Provider<IStorageService>((ref) {
 
 final reminderServiceProvider = Provider<IReminderService>((ref) {
   return ReminderService();
+});
+
+// Network & Storage
+final tokenStorageProvider = Provider<TokenStorage>((ref) {
+  return TokenStorage();
+});
+
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final tokenStorage = ref.watch(tokenStorageProvider);
+  return DioApiClient(
+    baseUrl: 'http://10.0.2.2:3000/api',
+    tokenStorage: tokenStorage,
+  );
+});
+
+final medicineServiceProvider = Provider<MedicineServiceInterface>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return MedicineService(apiClient: apiClient);
+});
+
+final authServiceProvider = Provider<AuthServiceInterface>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  final tokenStorage = ref.watch(tokenStorageProvider);
+  return AuthService(apiClient: apiClient, tokenStorage: tokenStorage);
+});
+
+// Auth State
+class AuthState {
+  final bool isLoading;
+  final bool isAuthenticated;
+  final User? user;
+  final String? error;
+
+  const AuthState({
+    this.isLoading = false,
+    this.isAuthenticated = false,
+    this.user,
+    this.error,
+  });
+
+  AuthState copyWith({
+    bool? isLoading,
+    bool? isAuthenticated,
+    User? user,
+    String? error,
+  }) {
+    return AuthState(
+      isLoading: isLoading ?? this.isLoading,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      user: user ?? this.user,
+      error: error, // Nullable override
+    );
+  }
+}
+
+class AuthNotifier extends StateNotifier<AuthState> {
+  final AuthServiceInterface _authService;
+
+  AuthNotifier(this._authService) : super(const AuthState(isLoading: true)) {
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
+    try {
+      final isAuth = await _authService.isAuthenticated();
+      if (isAuth) {
+        // Optimistically set authenticated, then fetch profile
+        state = state.copyWith(isLoading: false, isAuthenticated: true);
+        try {
+          final user = await _authService.getProfile();
+          if (mounted) {
+            state = state.copyWith(user: user);
+          }
+        } catch (_) {
+          // If profile fetch fails but token exists, we might need re-login or just stay auth
+          // ensuring we don't boot them out immediately if it's just a network blip,
+          // but if 401 it should have been caught by interceptor ideally.
+        }
+      } else {
+        state = state.copyWith(isLoading: false, isAuthenticated: false);
+      }
+    } catch (_) {
+      state = state.copyWith(isLoading: false, isAuthenticated: false);
+    }
+  }
+
+  Future<void> login(String email, String password) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _authService.login(email, password);
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: true,
+        user: user,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  Future<void> register(
+    String name,
+    String email,
+    String password,
+    UserRole role,
+  ) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _authService.register(
+        name: name,
+        email: email,
+        password: password,
+        role: role,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: true,
+        user: user,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  Future<void> logout() async {
+    state = state.copyWith(isLoading: true);
+    await _authService.logout();
+    state = state.copyWith(
+      isLoading: false,
+      isAuthenticated: false,
+      user: null,
+    );
+  }
+}
+
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return AuthNotifier(authService);
 });
 
 // Reminder Controller
@@ -135,4 +284,48 @@ class ActivityNotifier extends AsyncNotifier<List<Activity>> {
 final activityProvider =
     AsyncNotifierProvider<ActivityNotifier, List<Activity>>(() {
       return ActivityNotifier();
+    });
+
+class MedicinesNotifier extends AsyncNotifier<List<Medicine>> {
+  @override
+  Future<List<Medicine>> build() async {
+    return _fetchMedicines();
+  }
+
+  Future<List<Medicine>> _fetchMedicines() async {
+    final service = ref.read(medicineServiceProvider);
+    return service
+        .testFetchAllMedicines(); // Or getAllMedicines if available/standardized
+  }
+
+  Future<void> deleteMedicine(int id) async {
+    // Optimistic or Pessimistic?
+    // Let's do pessimistic for safety with backend, or optimistic for UI responsiveness.
+    // The prompt says "Remove item from UI immediately (optimistic update)".
+
+    final previousState = state.value;
+    if (previousState == null) return;
+
+    // Optimistic Update
+    state = AsyncValue.data(previousState.where((m) => m.id != id).toList());
+
+    try {
+      await ref.read(medicineServiceProvider).deleteMedicine(id);
+    } catch (e) {
+      // Revert on error
+      state = AsyncValue.data(previousState);
+      // We can't easily show snackbar from here, so we rethrow to let UI handle it
+      rethrow;
+    }
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _fetchMedicines());
+  }
+}
+
+final medicinesProvider =
+    AsyncNotifierProvider<MedicinesNotifier, List<Medicine>>(() {
+      return MedicinesNotifier();
     });

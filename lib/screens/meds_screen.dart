@@ -1,23 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../providers/providers.dart';
+import '../models/medicine.dart';
 
 class MedsScreen extends ConsumerWidget {
   const MedsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final remindersState = ref.watch(reminderProvider);
+    final medicinesAsync = ref.watch(medicinesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Meds')),
-      body: remindersState.when(
+      appBar: AppBar(
+        title: const Text('My Meds'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              ref.read(medicinesProvider.notifier).refresh();
+            },
+          ),
+        ],
+      ),
+      body: medicinesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (reminders) {
-          if (reminders.isEmpty) {
+        data: (medicines) {
+          if (medicines.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -29,12 +38,12 @@ class MedsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No reminders yet',
+                    'No medicines found',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap + to add a reminder',
+                    'Database is empty',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
@@ -43,195 +52,104 @@ class MedsScreen extends ConsumerWidget {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
-            itemCount: reminders.length,
+            padding: const EdgeInsets.all(16),
+            itemCount: medicines.length,
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final reminder = reminders[index];
-              return Dismissible(
-                key: Key(reminder.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                onDismissed: (direction) {
-                  ref.read(reminderProvider.notifier).removeReminder(reminder);
-                },
-                child: _AnimatedMedicineCard(
-                  reminder: reminder,
-                  onTap: () {
-                    context.push('/medicine-detail', extra: reminder);
-                  },
-                  onToggle: (value) {
-                    ref
-                        .read(reminderProvider.notifier)
-                        .toggleReminder(reminder);
-                  },
-                ),
-              );
+              final medicine = medicines[index];
+              return _MedicineCard(medicine: medicine);
             },
           );
         },
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 100),
-        child: FloatingActionButton(
-          onPressed: () {
-            context.push('/add-reminder');
-          },
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+    );
+  }
+}
+
+class _MedicineCard extends ConsumerWidget {
+  final Medicine medicine;
+
+  const _MedicineCard({required this.medicine});
+
+  Future<void> _deleteMedicine(BuildContext context, WidgetRef ref) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Medicine'),
+            content: const Text(
+              'Are you sure you want to delete this medicine?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          child: const Icon(Icons.add),
+    );
+
+    if (confirm == true) {
+      try {
+        await ref.read(medicinesProvider.notifier).deleteMedicine(medicine.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Medicine deleted'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainer,
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(
+            Icons.medication,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
         ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    );
-  }
-}
-
-class _AnimatedMedicineCard extends StatefulWidget {
-  final dynamic
-  reminder; // Using dynamic or PillReminder if available. Since this file imports providers, we might not have the model directly imported unless it's exported.
-  // Actually, 'reminders' in data is List<PillReminder>.
-  // I should check imports. providers.dart usually exports models.
-  // The file imports '../providers/providers.dart'. Let's assume PillReminder is available or I can use dynamic to be safe, but strong typing is better.
-  // Step 460 shows 'import '../providers/providers.dart';'.
-  // I will assume PillReminder is available via providers.dart exports (common pattern) or I might need to import it.
-  // Wait, step 14 in file 394 (router.dart) imports 'models/pill_reminder.dart'.
-  // Step 460 code didn't import models explicitly, but it worked.
-  // Ah, the original code used `reminder` variable but didn't type it in the itemBuilder explicitly?
-  // `final reminder = reminders[index];` -> Dart inference.
-  // `providers.dart` must allow access to the type.
-  // I'll stick to strong typing if I can, but to avoid import errors if `PillReminder` isn't exported by `providers.dart`, I will add the import.
-  // Wait, I can't add imports easily with replace_file_content if I only replace the class.
-  // I will replace the WHOLE class MedsScreen and add the new class at the bottom.
-  // AND I will add the import if needed.
-  // Let's assume the previous code worked, so `PillReminder` type is known or inferred.
-  // I'll just use `final GlobalKey...` or similar.
-  // Actually, I can just use `dynamic` or `var` in the widget if I'm lazy, but `required this.reminder` works if I define the field as `final PillReminder reminder`.
-  // If `PillReminder` isn't imported, I'd get an error.
-  // The original file imports:
-  // import 'package:flutter/material.dart';
-  // import 'package:go_router/go_router.dart';
-  // import 'package:flutter_riverpod/flutter_riverpod.dart';
-  // import 'package:intl/intl.dart';
-  // import '../providers/providers.dart';
-  // It does NOT import pill_reminder.dart individually.
-  // So `providers.dart` likely exports it.
-
-  final Function() onTap;
-  final Function(bool) onToggle;
-
-  const _AnimatedMedicineCard({
-    required this.reminder,
-    required this.onTap,
-    required this.onToggle,
-  });
-
-  @override
-  State<_AnimatedMedicineCard> createState() => _AnimatedMedicineCardState();
-}
-
-class _AnimatedMedicineCardState extends State<_AnimatedMedicineCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-    );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.98,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reminder = widget.reminder;
-    final isActive = reminder.isActive;
-
-    // Safety check just in case types are weird, but standard access should work
-    // Assuming matching fields from original file: medicineName, dosage, frequency, time, id
-
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) {
-        _controller.reverse();
-        widget.onTap();
-      },
-      onTapCancel: () => _controller.reverse(),
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Card(
-          elevation: 0,
-          color:
-              isActive
-                  ? Theme.of(context).colorScheme.surfaceContainer
-                  : Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          clipBehavior: Clip.antiAlias,
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: CircleAvatar(
-              backgroundColor:
-                  isActive
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Icon(
-                Icons.medication,
-                color:
-                    isActive
-                        ? Theme.of(context).colorScheme.onPrimaryContainer
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            title: Text(
-              reminder.medicineName,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                decoration: isActive ? null : TextDecoration.lineThrough,
-                color:
-                    isActive
-                        ? null
-                        : Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            subtitle: Text(
-              '${reminder.dosage} • ${reminder.frequency}\n${DateFormat.jm().format(reminder.time)}',
-              style: TextStyle(
-                color:
-                    isActive
-                        ? null
-                        : Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-            ),
-            isThreeLine: true,
-            trailing: Switch(value: isActive, onChanged: widget.onToggle),
+        title: Text(
+          medicine.name,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          '${medicine.type}${medicine.genericName != null ? " • ${medicine.genericName}" : ""}',
+          style: TextStyle(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: () => _deleteMedicine(context, ref),
         ),
       ),
     );

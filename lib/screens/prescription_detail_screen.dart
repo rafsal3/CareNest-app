@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../models/prescription.dart';
 
 class PrescriptionDetailScreen extends StatelessWidget {
@@ -9,6 +10,9 @@ class PrescriptionDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dateStr = DateFormat('d MMM y').format(prescription.prescribedAt);
+    final doctorName = prescription.doctor?.name ?? 'Unknown Doctor';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: CustomScrollView(
@@ -19,7 +23,7 @@ class PrescriptionDetailScreen extends StatelessWidget {
             pinned: true,
             backgroundColor: Colors.blueAccent,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
+              title: const Text(
                 'Prescription Details',
                 style: TextStyle(
                   color: Colors.white,
@@ -77,14 +81,14 @@ class PrescriptionDetailScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  prescription.doctorName,
+                                  doctorName,
                                   style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 Text(
-                                  prescription.date,
+                                  dateStr,
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[600],
@@ -99,15 +103,14 @@ class PrescriptionDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  // Medicines List
+                  // Medicines List (Now showing just the one linked medicine)
                   const Text(
-                    'Prescribed Medicines',
+                    'Prescribed Medicine', // Changed from "Medicines" to singular/contextual
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  ...prescription.medicines.map(
-                    (med) => _MedicineChip(medicine: med),
-                  ),
+                  // Render a single chip since 1 Prescription = 1 Medicine in this model
+                  _MedicineChip(prescription: prescription),
 
                   const SizedBox(height: 32),
                   // Actions
@@ -154,18 +157,25 @@ class PrescriptionDetailScreen extends StatelessWidget {
 }
 
 class _MedicineChip extends StatelessWidget {
-  final PrescriptionMedicine medicine;
+  final Prescription prescription;
 
-  const _MedicineChip({required this.medicine});
+  const _MedicineChip({required this.prescription});
 
   @override
   Widget build(BuildContext context) {
+    final medicineName = prescription.medicine?.name ?? 'Unknown Medicine';
+    final dosage = prescription.dosage;
+    final frequency = prescription.frequency;
+    // Note: 'time' usually meant "After food" etc, which backend doesn't rigidly strictly have as a separate "Time of day" field other than frequency instructions.
+    // However, I'll map it to frequency or generic placeholder if needed.
+    // Actually, let's just display dosage and frequency prominently.
+
     // Generate a random-ish pastel color based on name
     final color = Colors
-        .primaries[medicine.name.hashCode % Colors.primaries.length]
+        .primaries[medicineName.hashCode % Colors.primaries.length]
         .withValues(alpha: 0.1);
     final textColor =
-        Colors.primaries[medicine.name.hashCode % Colors.primaries.length];
+        Colors.primaries[medicineName.hashCode % Colors.primaries.length];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -190,7 +200,7 @@ class _MedicineChip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  medicine.name,
+                  medicineName,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -198,7 +208,7 @@ class _MedicineChip extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${medicine.dosage} • ${medicine.frequency}',
+                  '$dosage • $frequency',
                   style: TextStyle(
                     fontSize: 13,
                     color: textColor.withValues(alpha: 0.8),
@@ -207,8 +217,10 @@ class _MedicineChip extends StatelessWidget {
               ],
             ),
           ),
+          // We can remove the explicit 'time' column or use duration
           Text(
-            medicine.time,
+            prescription
+                .duration, // Using duration here instead of time (after food)
             style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
           ),
         ],

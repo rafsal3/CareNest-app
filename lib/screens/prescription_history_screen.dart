@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../models/prescription.dart';
+import '../models/medicine.dart';
+import '../models/user.dart';
 
 class PrescriptionHistoryScreen extends StatelessWidget {
   const PrescriptionHistoryScreen({super.key});
@@ -8,51 +11,97 @@ class PrescriptionHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Mock Data using Model
+    // Note: Previous UI grouped medicines. New Backend model is 1 prescription = 1 medicine.
+    // We will display them as individual entries or potentially grouped in future refactors.
+    // For now, listing them strictly.
     final List<Prescription> history = [
-      const Prescription(
-        id: '1',
-        date: '18 Jan 2026',
-        doctorName: 'Dr. Sarah Smith',
-        medicines: [
-          PrescriptionMedicine(
-            name: 'Amoxicillin',
-            dosage: '500mg',
-            frequency: 'Twice daily',
-            time: 'After food',
-          ),
-          PrescriptionMedicine(
-            name: 'Paracetamol',
-            dosage: '650mg',
-            frequency: 'SOS',
-            time: 'After food',
-          ),
-        ],
+      Prescription(
+        id: 1,
+        medicineId: 101,
+        patientId: 1,
+        doctorId: 10,
+        dosage: '500mg',
+        frequency: 'Twice daily',
+        duration: '5 days',
+        status: PrescriptionStatus.active,
+        prescribedAt: DateTime(2026, 1, 18),
+        doctor: const User(
+          id: 10,
+          email: 'sarah@test.com',
+          name: 'Dr. Sarah Smith',
+          role: UserRole.doctor,
+        ),
+        medicine: const Medicine(
+          id: 101,
+          name: 'Amoxicillin',
+          type: 'Antibiotic',
+        ),
       ),
-      const Prescription(
-        id: '2',
-        date: '12 Dec 2025',
-        doctorName: 'Dr. John Doe',
-        medicines: [
-          PrescriptionMedicine(
-            name: 'Vitamin D',
-            dosage: '60k IU',
-            frequency: 'Weekly',
-            time: 'After breakfast',
-          ),
-        ],
+      Prescription(
+        id: 2,
+        medicineId: 102,
+        patientId: 1,
+        doctorId: 10,
+        dosage: '650mg',
+        frequency: 'SOS',
+        duration: '3 days',
+        status: PrescriptionStatus.active,
+        prescribedAt: DateTime(2026, 1, 18),
+        doctor: const User(
+          id: 10,
+          email: 'sarah@test.com',
+          name: 'Dr. Sarah Smith',
+          role: UserRole.doctor,
+        ),
+        medicine: const Medicine(
+          id: 102,
+          name: 'Paracetamol',
+          type: 'Analgesic',
+        ),
       ),
-      const Prescription(
-        id: '3',
-        date: '05 Nov 2025',
-        doctorName: 'Dr. Emily White',
-        medicines: [
-          PrescriptionMedicine(
-            name: 'Metformin',
-            dosage: '500mg',
-            frequency: 'Once daily',
-            time: 'Before food',
-          ),
-        ],
+      Prescription(
+        id: 3,
+        medicineId: 103,
+        patientId: 1,
+        doctorId: 11,
+        dosage: '60k IU',
+        frequency: 'Weekly',
+        duration: '8 weeks',
+        status: PrescriptionStatus.completed,
+        prescribedAt: DateTime(2025, 12, 12),
+        doctor: const User(
+          id: 11,
+          email: 'john@test.com',
+          name: 'Dr. John Doe',
+          role: UserRole.doctor,
+        ),
+        medicine: const Medicine(
+          id: 103,
+          name: 'Vitamin D',
+          type: 'Supplement',
+        ),
+      ),
+      Prescription(
+        id: 4,
+        medicineId: 104,
+        patientId: 1,
+        doctorId: 12,
+        dosage: '500mg',
+        frequency: 'Once daily',
+        duration: 'Life long',
+        status: PrescriptionStatus.completed,
+        prescribedAt: DateTime(2025, 11, 5),
+        doctor: const User(
+          id: 12,
+          email: 'emily@test.com',
+          name: 'Dr. Emily White',
+          role: UserRole.doctor,
+        ),
+        medicine: const Medicine(
+          id: 104,
+          name: 'Metformin',
+          type: 'Antidiabetic',
+        ),
       ),
     ];
 
@@ -97,6 +146,10 @@ class _PrescriptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dateStr = DateFormat('d MMM y').format(prescription.prescribedAt);
+    final doctorName = prescription.doctor?.name ?? 'Unknown Doctor';
+    final medicineName = prescription.medicine?.name ?? 'Unknown Medicine';
+
     return InkWell(
       onTap: () {
         context.push('/prescription-detail', extra: prescription);
@@ -133,7 +186,7 @@ class _PrescriptionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    prescription.date,
+                    medicineName, // Showing Medicine name as primary info now since 1:1
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -141,7 +194,7 @@ class _PrescriptionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    prescription.doctorName,
+                    '$doctorName • $dateStr',
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],

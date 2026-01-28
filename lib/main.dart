@@ -4,33 +4,34 @@ import 'router.dart';
 import 'services/storage_service.dart';
 import 'services/reminder_service.dart';
 import 'providers/providers.dart';
+import 'widgets/bootstrap_wrapper.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize services
+  // Create service instances synchronously
   final storageService = StorageService();
-  await storageService.init();
-
   final reminderService = ReminderService();
-  await reminderService.init();
 
+  // Run app immediately without awaiting initialization
   runApp(
     ProviderScope(
       overrides: [
         storageServiceProvider.overrideWithValue(storageService),
         reminderServiceProvider.overrideWithValue(reminderService),
       ],
-      child: const MyApp(),
+      // Wrap MyApp with BootstrapWrapper to handle async init
+      child: const BootstrapWrapper(child: MyApp()),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'CareNest',
       theme: ThemeData(
